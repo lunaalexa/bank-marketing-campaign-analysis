@@ -1,0 +1,519 @@
+---
+title: "FinalExam-2802501416-LunaAlexa"
+author: "Luna ALexa"
+date: "2025-06-21"
+output: html_document
+---
+
+Video Explanation Link: https://drive.google.com/drive/folders/1UgjSqnMF1EWupk0AkvnjzE0vbl_4_4kc?usp=sharing
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  message = FALSE, 
+  warning = FALSE,
+  fig.width = 7,
+  fig.height = 5,
+  dev = "png"
+)
+```
+```{r}
+library(dplyr)
+library(ggplot2)
+library(plotly)
+```
+
+```{r}
+data <- read.csv("data_D.csv")
+```
+
+# Bank’s Recent Marketing Campaigns Performance Evaluation{.tabset}
+
+
+## CASE STUDY 1 - Data Quality Assessment and Preprocessing 
+
+### a. Identify data quality issues
+```{r}
+summary(data)
+colSums(is.na(data))
+```
+From the summary, it can be seen that there is a missing value in the variable duration
+
+```{r}
+data %>% count(job)
+data %>% count(marital)
+data %>% count(education)
+data %>% count(default)
+data %>% count(housing)
+data %>% count(loan)
+data %>% count(contact)
+data %>% count(month)
+data %>% count(day_of_week)
+data %>% count(poutcome)
+data %>% count(y)
+```
+It can be seen that there is unknown or missing value in the variable job (8 data), marital(14 data), education(349 data), default(1747 data), housing (205 data), loan (205 data) that can be handled by imputing data with its mode
+
+```{r}
+sum(duplicated(data))
+```
+There is no duplicated data
+
+```{r}
+boxplot(data$age)
+boxplot(data$duration)
+boxplot(data$campaign)
+boxplot(data$pdays)
+boxplot(data$previous)
+```
+
+All of the numerical data have outliers
+```{r}
+table(data$pdays)
+```
+Value 999 in pdays which means "not previously contacted" need to be recoded
+
+summary :  
+Missing value : duration  
+Duplicate records : -  
+Inconsistent or unknown categories : job, marital, education, default, housing,loan  
+Outliers or extreme values : age, duration, campaign, previous  
+Noisy or irrelevant values : pdays, index column(x)  
+
+### b. Handle the issues that has been identified
+```{r}
+clean_data = data
+```
+
+
+#### 1. Handling missing value for variable duration (Imputed)
+The 'duration' column has missing values. Given its importance as a predictor and the skewed nature of its distribution,missing values in 'duration' will be imputed with the value of its median (The code below will also shows that 'duration' has outliers, so it needs to be imputed using median, not mean).
+
+
+```{r}
+summary(data$duration)
+```
+```{r}
+Q1 <- quantile(data$duration, 0.25, na.rm = TRUE)
+Q3 <- quantile(data$duration, 0.75, na.rm = TRUE)
+IQR <- Q3 - Q1
+
+lower_bound <- Q1 - 1.5 * IQR
+upper_bound <- Q3 + 1.5 * IQR
+
+lower_bound
+upper_bound
+```
+The max value (4918.0) is much larger than Q3 (319.8) or its upper bond limit (646.375), which means there is an outlier in the duration variable, so the median must be used to replace the missing value.
+
+
+```{r}
+boxplot(data$duration)
+```
+
+It also shows high outliers from the boxplot
+
+```{r}
+med = median(clean_data$duration, na.rm=T)
+med
+```
+```{r}
+library(data.table)
+clean_data$duration = nafill(clean_data$duration, fill = med)
+```
+
+```{r}
+colSums(is.na(clean_data))
+summary(clean_data$duration)
+```
+
+There is no more missing value in the 'duration' since it is already imputed with its median
+
+#### 2. Inconsistent or unknown categories (Imputed & recoded)
+Several categorical columns contain 'unknown' or blank ("") values. These will be handled based on their specific characteristics. Since removing these rows would lead to significant data loss, the chosen strategy is to impute them with the mode or to recode them to preserve the dataset's integrity.
+
+##### Part A: Impute general categorical columns with their mode.
+These columns (job, marital, education, housing, and loan) have well-distributed categories where mode imputation is a safe choice.
+```{r}
+cols_for_mode_imputation <- c("job", "marital", "education", "housing", "loan")
+
+for(col in cols_for_mode_imputation) {
+  mode_val<-clean_data %>%
+    filter(!!as.symbol(col)!="unknown" & !!as.symbol(col)!="") %>%
+    count(!!as.symbol(col), sort = TRUE) %>%
+    slice(1) %>%
+    pull(1)
+  
+  clean_data <- clean_data %>%
+    mutate(!!col := if_else(!!as.symbol(col) %in% c("unknown",""), mode_val, as.character(!!as.symbol(col))))
+    
+  
+  clean_data[[col]] <- as.factor(clean_data[[col]])
+}
+```
+```{r}
+clean_data %>% count(job)
+clean_data %>% count(marital)
+clean_data %>% count(education)
+clean_data %>% count(default)
+clean_data %>% count(housing)
+clean_data %>% count(loan)
+clean_data %>% count(contact)
+clean_data %>% count(month)
+clean_data %>% count(day_of_week)
+clean_data %>% count(poutcome)
+clean_data %>% count(y) 
+```
+##### Part B: Recode the 'default' column.
+Since this column only contains 'no' and 'unknown', it needs to be recoded to capture this specific information. This would be better if it is changed to a binary variable indicating whether the status(Whether the client has a credit in default) is known or not.
+
+```{r}
+clean_data <- clean_data %>%
+  mutate(knownInDefault = if_else(default == 'no', 'yes', 'no')) %>%
+  select(-default)
+
+clean_data$knownInDefault <- as.factor(clean_data$knownInDefault)
+```
+
+```{r}
+clean_data %>% count(job)
+clean_data %>% count(marital)
+clean_data %>% count(education)
+clean_data %>% count(knownInDefault)
+clean_data %>% count(housing)
+clean_data %>% count(loan)
+clean_data %>% count(contact)
+clean_data %>% count(month)
+clean_data %>% count(day_of_week)
+clean_data %>% count(poutcome)
+clean_data %>% count(y) 
+```
+
+
+#### 3. Outliers or extreme values (Recoded/capped)
+To handle outliers, capping is the most balanced option. It reduces the negative impact of the very extreme values in the variable : campaign, previous, and duration without having to discard observations. For age, outliers were retained because values such as 80 or 90 years old, while statistically extreme, are demographically plausible and represent a real segment of the client base. I will limit values at the 99th percentile. This means that any value in the top 1% will be equated to a value at the 99th percentile.
+
+```{r}
+colsCap <- c("duration", "campaign", "previous")
+for(col in colsCap) {
+  capValue <- quantile(clean_data[[col]], probs = 0.99, na.rm = TRUE)
+  
+  clean_data <- clean_data %>%
+    mutate(!!col := if_else(!!as.symbol(col) > capValue, capValue, !!as.symbol(col)))
+}
+
+```
+
+```{r}
+summary(clean_data)
+```
+
+
+#### 4. Noisy or irrelevant values (removed/recoded)
+##### Part A: Remove the irrelevant 'X' column.
+
+```{r}
+clean_data <- clean_data %>%
+  select(-X)
+```
+```{r}
+summary(clean_data)
+```
+
+##### Part B: Recode the 'pdays' column.
+The value 999 in pdays is a code for 'not previously contacted'. Treating this as a numerical value would severely skew any statistical analysis. Therefore, it was recoded into a meaningful binary variable contacted_previously to accurately represent this information.
+
+```{r}
+table(data$pdays)
+```
+```{r}
+clean_data <- clean_data %>%
+  mutate(contacted_previously = if_else(pdays == 999, "no", "yes")) %>%
+  select(-pdays)
+
+clean_data$contacted_previously <- as.factor(clean_data$contacted_previously)
+
+```
+```{r}
+table(clean_data$contacted_previously) 
+```
+```{r}
+summary(clean_data)
+```
+### c. Summary statistics and initial exploration
+#### 1. Calculate central tendency and variability for numerical columns
+```{r}
+numericalColumns <- clean_data %>%
+  select(where(is.numeric))
+```
+```{r}
+cat("\n-Summary Statistics for Each Numerical Column-\n")
+summary(numericalColumns)
+```
+IQR of age : 15<br>
+IQR of duration : 217<br>
+IQR of campaign : 2.000<br>
+IQR of previous : 0<br> 
+
+
+```{r}
+cat("\n-Standard Deviation for Each Numerical Column-\n")
+sapply(numericalColumns, sd, na.rm = TRUE)
+```
+Analysis : The summary statistics show the central tendency and spread for each numerical variable. For instance, the median client age is 38 years. The capping of outliers is evident in the Max. values for duration, campaign, and previous, which are now more reasonable.
+
+#### 2. Create a summary table to explore one variable across categories
+```{r}
+library(knitr)
+ageByJobSummary<- clean_data %>%
+  group_by(job) %>%
+  summarise(
+    count = n(),                      
+    mean_age = mean(age),              
+    median_age = median(age),         
+    sd_age = sd(age),                 
+    min_age = min(age),               
+    max_age = max(age)                
+  ) %>%
+  arrange(desc(mean_age))             
+
+
+kable(ageByJobSummary, caption = "Summary Statistics of Age Across Different Job Types", digits = 1)
+
+```
+
+The summary table reveals clear demographic patterns across different professions. As expected, the **"retired"** client group has the highest average age at 61.8 years, while the **"student"** group is the youngest with an average age of 26.0 years. Most other professional roles, such as **"admin.", "technician", and "management"**, have a median age clustered in the late 30s to early 40s, aligning with the overall median age of the entire client base. This initial exploration confirms that the data is logical and provides a solid foundation for segmenting clients based on their life stage and profession.
+
+## CASE STUDY 2 - Relationship Analysis
+### a. Explore variable relationships
+To identify factors influencing the campaign outcome (y), the three key variables are : poutcome (categorical), contact (categorical), and duration (numerical). Appropriate methods are used to analyze their relationship with the outcome variable y.
+
+#### 1. duration vs y
+
+```{r}
+duration_y_summary<- clean_data %>%
+  group_by(y) %>%
+  summarise(
+    `Client Count` = n(),
+    `Mean Duration (s)` = mean(duration),
+    `Median Duration (s)` = median(duration)
+  )
+
+kable(duration_y_summary,  digits = 0)
+```
+Observation : A powerful relationship is evident. The median call duration for clients who subscribed (yes) is 439 seconds, more than 2.5 times longer than the median for those who did not (no) at 165 seconds. This strongly indicates that longer, more engaging conversations are highly correlated with a positive campaign outcome.
+
+
+#### 2. poutcome vs y
+```{r}
+t1 = table(clean_data$poutcome, clean_data$y)
+t1
+```
+```{r}
+chisq.test(t1)
+```
+```{r}
+
+propPoutcome<- prop.table(t1, margin = 1) * 100
+kable(propPoutcome, digits = 1)
+```
+```{r}
+library(vcd)
+
+assocstats(t1)
+
+
+```
+
+H0 : There are no relations between variables  
+H1 : There are relations between variables  
+Observation :  
+The Chi-Square test resulted in a p-value less than 0.05, this means reject the null hypothesis and conclude a statistically significant association exists between the two variables. The Cramér's V of 0.306 indicates a moderately strong association. Specifically, the proportion table reveals that clients with a "success" in a previous campaign have a subscription rate of 63.2%, which is dramatically higher than the rates for "failure" (12.9%) or "nonexistent" (8.9%) groups. This makes poutcome a powerful and highly actionable predictor.
+
+#### 3. contact vs y
+
+```{r}
+t2 = table(clean_data$contact, clean_data$y)
+t2
+```
+```{r}
+chisq.test(t2)
+```
+
+```{r}
+propContact<- prop.table(t2, margin = 1) * 100
+kable(propContact, digits = 1)
+```
+```{r}
+assocstats(t2)
+```
+
+H0 : There are no relations between variables  
+H1 : There are relations between variables  
+Observation : The contingency table shows that campaigns conducted via cellular are more successful (14.5% subscription rate) compared to those via telephone (5.1%). The Chi-Square test confirms this observation with a p-value well below 0.05, allowing us to reject the null hypothesis and conclude there is a statistically significant association.
+The Cramér's V of 0.145 indicates that while the relationship is significant, its strength is considered weak. This means that while contact method matters, other factors like poutcome and duration have a much stronger influence on the final outcome.
+
+### b. Feature engineering
+
+```{r}
+clean_data$pdays<- data$pdays
+
+clean_data<- clean_data %>%
+  mutate(
+    # 1. Create 'age_group'
+    age_group = case_when(
+      age < 30 ~ "Young (<30)",
+      age >= 30 & age <= 50 ~ "Middle-Aged (30-50)",
+      TRUE ~ "Senior (>50)"
+    ),
+    
+    # 2. Create 'total_contact_score'
+    total_contact_score = campaign + previous,
+    
+    # 3. Create 'recency_level'
+    recency_level = case_when(
+      pdays == 999 ~ "Never Contacted",
+      pdays <= 30  ~ "Recent (<30 days)",
+      TRUE         ~ "Old (>30 days)"
+    )) %>%
+  select(-pdays)
+```
+
+```{r}
+clean_data$age_group <- factor(clean_data$age_group, levels = c("Young (<30)", "Middle-Aged (30-50)", "Senior (>50)"))
+
+clean_data$recency_level <- factor(clean_data$recency_level, levels = c("Never Contacted", "Recent (<30 days)", "Old (>30 days)"))
+```
+
+```{r}
+summary(clean_data)
+```
+
+The three new features were engineered from existing variables. Through this process, it will help to segment the data into more meaningful groups and consolidate information for a more robust analysis.
+
+### c. Interactive visualizations of relations
+#### Age group vs y
+```{r}
+t1 = count(clean_data, age_group, y)
+tail(t1)
+```
+```{r}
+plot_ly(t1, x=~age_group, y =~n, color =~y, type="bar") %>%
+  layout(title = "Distribution of Success by Age Group")
+  
+```
+
+Interpretation: The **"Middle-Aged (30-50)"** group represents the largest segment of clients contacted, as shown by the taller bars for both "yes" and "no" outcomes.However, by visually comparing the height of the "yes" bar relative to the "no" bar within each group, a different pattern emerges. The **"Young (<30)"** and **"Senior (>50)"** groups show a proportionally higher "yes" bar compared to their "no" bar, indicating a **higher success rate**. Conversely, the "Middle-Aged" group, despite its size, has a much larger "no" bar relative to its "yes" bar, signaling a lower conversion rate for this segment.
+
+#### Duration vs y
+```{r}
+t2 = clean_data %>%
+  group_by(y) %>%
+  summarize(rata2 = mean(duration),
+            med = median(duration),
+            standarDev = sd(duration),
+            minimum = min(duration),
+            maximum = max(duration))
+
+t2
+```
+
+```{r}
+plot_ly(clean_data, x=~y, y=~duration, type="box") %>%
+  layout(title = "Distribution of Call Duration by Outcome",
+         xaxis = list(title = "Subscription Outcome"),
+         yaxis = list(title = "Call Duration (seconds)"))
+```
+
+Interpretation: The interactive boxplot clearly confirms that successful outcomes (y = 'yes') are associated with significantly longer call durations. The median duration for a "yes" is more than double that of a "no", reinforcing that call engagement is a critical factor in the campaign's success.
+
+#### Age vs duration, grouped by education
+
+To explore the multi-dimensional relationship between age, duration, and education, an interactive scatter plot was chosen as the most effective visualization. While a bar chart could show the average values for each education group, a scatter plot allows for a direct examination of the relationship between the two numerical variables (age and duration) at an individual client level, with the third variable (education) represented by color. This approach provides richer insights into data distribution and potential clusters.
+
+```{r}
+t3 = clean_data%>%
+  group_by(education)%>%
+  summarize(age =mean(age),
+            duration = mean(duration),
+            )
+t3
+```
+
+```{r}
+plot_ly(clean_data, x =~age, y =~duration, color =~education, type ='scatter', mode ='markers',marker = list(size = 5)) %>% layout(title = "Call Duration vs. Age, Colored by Education",
+         xaxis = list(title = "Client Age"),
+         yaxis = list(title = "Call Duration (sec)"))
+```
+
+Interpretation : This scatter plot reveals that successful calls (those with high duration) are not confined to a specific age group or education level. They occur across the entire spectrum. By coloring the points by education, we can see that clients with a university.degree are numerous across all ages. Hovering over individual points allows for a deeper, client-level exploration of these multi-dimensional relationships.
+
+## CASE STUDY 3 - Insight Storytelling and Recommendations
+### a. Data storytelling through visual design
+
+#### Key finding 1: Past Success is the Strongest Predictor of Future Success
+```{r}
+# Data-prep for the plot_ly chart
+poutcome_summary<- clean_data%>%
+  group_by(poutcome, y)%>%
+  summarise(count = n(), .groups = 'drop')%>%
+  group_by(poutcome)%>%
+  mutate(proportion = count/sum(count)) %>%
+  filter(y == "yes") %>%
+  mutate(label_text = paste0(round(proportion * 100, 1), "%"),
+    bar_color = if_else(poutcome == "success", "blue", "lightblue"))
+
+```
+```{r}
+plot_ly(data = poutcome_summary,x =~reorder(poutcome, proportion), y =~proportion, type = 'bar', text = ~label_text,
+  textposition = 'outside', 
+  hoverinfo = 'text', 
+  hovertext = ~paste("Success Rate:", label_text),
+  marker = list(color = ~bar_color)) %>%
+  layout(title = list(text = "<b>Subscription Rate Skyrockets for Previously Successful Clients</b><br><sup>Clients with a 'success' history are nearly 5x more likely to subscribe again.</sup>",
+                      font = list(size = 18)),
+         xaxis = list(title = "Outcome of Previous Campaign"),
+         yaxis = list(title = "Subscription Rate", tickformat = '.0%'), # Format y-axis as percentage
+         showlegend = FALSE)
+```
+This chart is designed to deliver one powerful message: clients who have subscribed before are an immensely valuable asset and your most promising audience. The bar for 'success' is highlighted to immediately draw attention to this key segment.
+
+#### Key finding 2: Campaign Timing is Crucial for Success
+```{r}
+month_summary <- clean_data %>%
+  group_by(month) %>%
+  summarise(success_rate = mean(y == "yes"),total_calls = n()) %>%
+  mutate(month_factor = factor(month, levels = c("mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")),
+    bar_color = if_else(success_rate > 0.4,"blue", "lightblue")) %>%
+  arrange(month_factor) 
+```
+```{r}
+plot_ly(data = month_summary,x =~month_factor,y =~success_rate, type = 'bar', hoverinfo = 'text', 
+        hovertext =~paste("Month:", month,
+                     "<br>Success Rate:", scales::percent(success_rate, accuracy = 0.1),
+                     "<br>Total Calls:", total_calls),
+        marker = list(color = ~bar_color)) %>%
+  layout(title = list(text = "<b>Campaign Success Varies Greatly by Month</b><br><sup>Spring and Autumn show the highest conversion rates.</sup>",
+                      font = list(size = 18)),
+         xaxis = list(title = "Month of Contact"),
+         yaxis = list(title = "Subscription Success Rate", tickformat = '.0%'),
+         showlegend = FALSE)
+```
+This visualization illustrates the "hot" and "cold" months for marketing campaigns. Months with high conversion rates are highlighted in a distinct color to show when marketing efforts are most effective.
+
+### b. Interpret findings
+Through the findings, analysis reveals that the typical client contacted is a middle-aged professional, around 38 years old (median age), and a successful call often requires a significant time investment, with a median duration of 439 seconds (over 7 minutes) for clients who subscribe. The most powerful and unusual finding is the identification of a high-value client segment: those with a successful outcome in a previous campaign are over 4.5 times more likely to subscribe again (63.2% success rate) compared to any other group. It is critical, however, to correctly interpret the strong correlation between long call durations and success; this does not mean longer calls cause conversions, but rather that genuinely interested clients are willing to engage in longer, more detailed conversations with our agents.
+
+
+
+### c. Make Business Recommendations
+
+**1. Implement a Targeted Retargeting Strategy for Previously Successful Clients**  
+Recommendation: Establish a dedicated “VIP” segment consisting of all clients with a previous campaign outcome of ‘success’. These clients should be prioritized in future campaigns and approached by senior agents using a personalized script that highlights the existing positive relationship. With a 63.2% conversion rate, even minimal investment in this group can generate significantly higher returns compared to broader outreach efforts.  
+
+Data Backing : As illustrated in the “Subscription Rate by Previous Campaign Outcome” chart, this segment converts at a rate over 4.5 times higher than clients who previously declined (12.9%).
+
+**2. Improve Campaign Efficiency by Reallocating Resources Based on Seasonal Months Performance**
+Recommendation: Redirect a substantial portion of the marketing budget and call center resources away from underperforming months like May (6.4% success rate) and concentrate efforts during high-performing months such as March, September, October, and December, each of which shows conversion rates exceeding 40%. Shifting to a more focused, seasonal “pulsing” approach—rather than maintaining a high-volume effort year-round—can significantly boost efficiency and campaign effectiveness.  
+
+Data Backing: The “Campaign Success by Month” chart clearly reveals peak and low-performance periods, highlighting that May receives high outreach volume with minimal return(need to be avoided).
