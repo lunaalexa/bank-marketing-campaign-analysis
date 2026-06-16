@@ -60,10 +60,12 @@ Built interactive visualizations to communicate findings in a way that could sup
 ## 📊 Key Findings
 
 ### Previous Success Predicts Future Success
+![Results Dashboard](PlotResults1.png)
 
 Customers who previously subscribed during a marketing campaign achieved a **63.2% subscription rate**, making them over **4.5× more likely** to subscribe again than other customer groups.
 
 ### Campaign Timing Matters
+![Results Dashboard](PlotResults2.png)
 
 Marketing performance varied substantially across months.
 
