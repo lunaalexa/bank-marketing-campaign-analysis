@@ -130,5 +130,10 @@ Before this project, I viewed data analysis mainly as generating charts and stat
 ## 🎯 Key Takeaway
 
 Preprocessing is not just data cleaning—it is a series of decisions that shapes the quality of every insight generated from the data.
+---
+## 👩‍💻 Author
 
-BINUS University — Data Mining & Visualization Project
+**Luna Alexa**
+
+Data Science Student — BINUS University
+
